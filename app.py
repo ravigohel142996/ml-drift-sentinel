@@ -99,9 +99,9 @@ def validate_dataset(df: pd.DataFrame, dataset_name: str) -> tuple:
     if len(numeric_cols) == 0:
         return False, f"{dataset_name} must contain at least one numeric column"
     
-    # Check for minimum rows
-    if len(df) < 10:
-        return False, f"{dataset_name} must contain at least 10 rows"
+    # Check for minimum rows (30 is minimum for statistical significance)
+    if len(df) < 30:
+        return False, f"{dataset_name} must contain at least 30 rows for statistical analysis"
     
     return True, ""
 
@@ -139,9 +139,15 @@ def load_uploaded_data(baseline_file, live_file):
             return None, None, "Datasets must have at least one common numeric column"
         
         return baseline_df, live_df, ""
-        
+    
+    except pd.errors.ParserError as e:
+        return None, None, f"CSV parsing error: {str(e)}"
+    except UnicodeDecodeError:
+        return None, None, "File encoding error. Please ensure your CSV is UTF-8 encoded."
+    except MemoryError:
+        return None, None, "File too large. Please use a smaller dataset."
     except Exception as e:
-        return None, None, f"Error loading data: {str(e)}"
+        return None, None, f"Unexpected error loading data: {str(e)}"
 
 
 @st.cache_data
@@ -285,7 +291,7 @@ def main():
                 <li><strong>Monitor Dashboard:</strong> Review drift analysis, alerts, and recommendations</li>
             </ol>
             <p style="margin-top: 30px; padding: 15px; background-color: #f1f5f9; border-radius: 5px; color: #334155;">
-                💡 <strong>Tip:</strong> Your datasets should contain numeric features and have at least 10 rows. 
+                💡 <strong>Tip:</strong> Your datasets should contain numeric features and have at least 30 rows for statistical analysis. 
                 Ensure both datasets share common column names for accurate drift detection.
             </p>
         </div>
@@ -294,25 +300,28 @@ def main():
         # Show sample data structure
         st.markdown("---")
         st.markdown("### 📝 Sample Data Format")
+        st.info("Note: Your actual datasets should have at least 30 rows for meaningful statistical analysis. The examples below are abbreviated for display.")
         
         col1, col2 = st.columns(2)
         with col1:
             st.markdown("**Example Baseline Data:**")
             sample_baseline = pd.DataFrame({
-                'feature_1': [0.5, 0.6, 0.7, 0.8],
-                'feature_2': [100, 120, 110, 115],
-                'feature_3': [1.2, 1.5, 1.3, 1.4]
+                'feature_1': [0.5, 0.6, 0.7, 0.8, 0.9, 0.55],
+                'feature_2': [100, 120, 110, 115, 105, 125],
+                'feature_3': [1.2, 1.5, 1.3, 1.4, 1.6, 1.3]
             })
             st.dataframe(sample_baseline, use_container_width=True)
+            st.caption("... (showing 6 of 30+ rows)")
         
         with col2:
             st.markdown("**Example Live Data:**")
             sample_live = pd.DataFrame({
-                'feature_1': [0.4, 0.5, 0.6, 0.7],
-                'feature_2': [95, 105, 100, 108],
-                'feature_3': [1.8, 2.0, 1.9, 2.1]
+                'feature_1': [0.4, 0.5, 0.6, 0.7, 0.8, 0.45],
+                'feature_2': [95, 105, 100, 108, 102, 110],
+                'feature_3': [1.8, 2.0, 1.9, 2.1, 1.95, 2.0]
             })
             st.dataframe(sample_live, use_container_width=True)
+            st.caption("... (showing 6 of 30+ rows)")
         
         return
     
@@ -357,7 +366,9 @@ def main():
     # Generate alerts with custom thresholds
     drift_alerts = alert_engine.check_drift_alerts(drift_results)
     
-    # Generate sample predictions for demonstration (real data from distributions)
+    # Generate sample predictions for demonstration
+    # NOTE: In production, these would be actual model predictions from your ML pipeline
+    # For this demo, we simulate predictions based on data distributions
     baseline_predictions = generate_sample_predictions(baseline_data, 'high')
     live_predictions = generate_sample_predictions(live_data, 'medium')
     
@@ -372,7 +383,9 @@ def main():
     
     # Apply custom confidence drop threshold
     if conf_metrics.get('confidence_decline', 0) > confidence_drop_threshold:
-        conf_metrics['is_declining'] = True
+        # Mark as declining if threshold exceeded (preserving existing state)
+        if not conf_metrics.get('is_declining', False):
+            conf_metrics['is_declining'] = True
     
     conf_alerts = alert_engine.check_confidence_alerts(conf_metrics)
     
@@ -575,7 +588,8 @@ def render_drift_page(drift_results, drift_summary, drift_report, baseline_data,
         label="📥 Download Drift Report (CSV)",
         data=csv,
         file_name="drift_report.csv",
-        mime="text/csv"
+        mime="text/csv",
+        key="download_drift_report"
     )
     
     # Top drifted features
@@ -901,7 +915,8 @@ def render_alerts_page(alert_engine, drift_results, conf_metrics, proxy_metrics)
             label="📥 Download Alert Report (CSV)",
             data=csv,
             file_name="alert_report.csv",
-            mime="text/csv"
+            mime="text/csv",
+            key="download_alert_report"
         )
     
     # System recommendations summary
