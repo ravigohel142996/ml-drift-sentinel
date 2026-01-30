@@ -273,13 +273,21 @@ class AlertEngine:
         Returns:
             List of prioritized recommendations
         """
-        recommendations = set()
+        recommendations = []
+        seen = set()
         
-        # Priority order for recommendations
+        # Priority order for recommendations - maintain order and avoid duplicates
         for alert in self.alerts:
+            rec_text = alert.details.get('recommendation', '')
+            if not rec_text or rec_text in seen:
+                continue
+            
+            seen.add(rec_text)
             if alert.severity == "CRITICAL":
-                recommendations.add(f"🔴 CRITICAL: {alert.details.get('recommendation', '')}")
+                recommendations.append((0, f"🔴 CRITICAL: {rec_text}"))
             elif alert.severity == "HIGH":
-                recommendations.add(f"🟡 HIGH: {alert.details.get('recommendation', '')}")
+                recommendations.append((1, f"🟡 HIGH: {rec_text}"))
         
-        return sorted(list(recommendations), reverse=True)
+        # Sort by priority (0=CRITICAL, 1=HIGH) and return just the messages
+        recommendations.sort(key=lambda x: x[0])
+        return [rec[1] for rec in recommendations]

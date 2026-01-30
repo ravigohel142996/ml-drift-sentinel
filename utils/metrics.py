@@ -120,13 +120,9 @@ def jensen_shannon_divergence(baseline: np.ndarray, live: np.ndarray, bins: int 
     baseline_hist, _ = np.histogram(baseline_clean, bins=bin_edges)
     live_hist, _ = np.histogram(live_clean, bins=bin_edges)
     
-    # Normalize to get probability distributions
-    baseline_prob = baseline_hist / (len(baseline_clean) + 1e-10)
-    live_prob = live_hist / (len(live_clean) + 1e-10)
-    
-    # Ensure they sum to 1
-    baseline_prob = baseline_prob / (baseline_prob.sum() + 1e-10)
-    live_prob = live_prob / (live_prob.sum() + 1e-10)
+    # Normalize to get probability distributions (ensure they sum to 1)
+    baseline_prob = baseline_hist / baseline_hist.sum() if baseline_hist.sum() > 0 else baseline_hist
+    live_prob = live_hist / live_hist.sum() if live_hist.sum() > 0 else live_hist
     
     # Calculate JS divergence
     js_div = jensenshannon(baseline_prob, live_prob)
